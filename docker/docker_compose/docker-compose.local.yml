@@ -1,0 +1,55 @@
+version: "3.8"
+x-postgres-common: &postgres-common
+  image: bitnami/postgresql:15.5.0
+  restart: on-failure
+
+services:
+  redis:
+    image: redis:7.2.4-alpine3.19
+    restart: always
+    container_name: nangpun-redis
+    ports:
+      - "16379:6379"
+    tty: true
+    command: redis-server --notify-keyspace-events KEA
+  # 쓰기 전용 데이터베이스
+  postgresql-main:
+    <<: *postgres-common
+    container_name: postgresql_write
+    ports:
+      - "15432:5432"
+    volumes:
+      - ../../sql/00_init.sql:/docker-entrypoint-initdb.d/00_init.sql
+    environment:
+      POSTGRESQL_REPLICATION_MODE: master
+      POSTGRESQL_REPLICATION_USER: replicator
+      POSTGRESQL_REPLICATION_PASSWORD: replicator_password
+      POSTGRES_INITDB_ARGS: '--encoding=UTF-8 --lc-collate=C --lc-ctype=C'
+      POSTGRESQL_MAX_CONNECTIONS: 300
+      POSTGRESQL_USERNAME: postgres
+      POSTGRESQL_PASSWORD: 1203
+      POSTGRESQL_DATABASE: nangpun
+
+  # 읽기 전용 데이터베이스
+  postgresql-standby:
+    <<: *postgres-common
+    container_name: postgresql_read
+    ports:
+      - "15433:5432"
+    depends_on:
+      - postgresql-main
+    environment:
+      POSTGRESQL_REPLICATION_MODE: slave
+      POSTGRESQL_REPLICATION_USER: replicator
+      POSTGRESQL_REPLICATION_PASSWORD: replicator_password
+      POSTGRESQL_MAX_CONNECTIONS: 300
+      POSTGRES_INITDB_ARGS: '--encoding=UTF-8 --lc-collate=C --lc-ctype=C'
+      POSTGRESQL_MASTER_HOST: postgresql-main
+      POSTGRESQL_MASTER_PORT: 5432
+      POSTGRESQL_USERNAME: postgres
+      POSTGRESQL_PASSWORD: 1203
+      POSTGRESQL_DATABASE: nangpun
+
+volumes:
+  postgresql_main_data:
+    driver: local

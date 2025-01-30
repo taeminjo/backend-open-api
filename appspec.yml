@@ -1,0 +1,18 @@
+#version: 0.0
+#os: linux
+#files:
+#  - source: /
+#    destination: /deploy
+#permissions:
+#  - object: /deploy
+#    pattern: "**"
+#    owner: root
+#    group: root
+#hooks:
+#  BeforeInstall:
+#    - location: deploy_script/deploy-before.sh
+#      runas: root
+#  ApplicationStart:
+#    - location: deploy_script/deploy-after.sh
+#      timeout: 300
+#      runas: root

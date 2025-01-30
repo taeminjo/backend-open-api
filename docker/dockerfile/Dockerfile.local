@@ -1,0 +1,42 @@
+## Builder
+FROM amazoncorretto:21-alpine AS builder
+COPY gradlew .
+COPY settings.gradle.kts .
+COPY build.gradle.kts .
+COPY gradle gradle
+COPY src src
+RUN ./gradlew clean bootJar
+
+## corretto 에서 JRE만 사용
+FROM amazoncorretto:21-alpine as corretto-jdk
+# required for strip-debug to work
+RUN apk add --no-cache binutils
+
+# Build small JRE image
+RUN jlink \
+         --add-modules ALL-MODULE-PATH \
+         --strip-debug \
+         --no-man-pages \
+         --no-header-files \
+         --compress=2 \
+         --output /jre
+
+## alpine 기본 이미지에 JRE만 옮겨서 사용
+FROM alpine:latest
+ENV SPRING_PROFILES_ACTIVE "local"
+ENV JAVA_HOME=/jre
+ENV PATH="${JAVA_HOME}/bin:${PATH}"
+EXPOSE 18080
+
+## 기본 UTC 이므로 한국시간으로 변경
+#RUN apk --no-cache add tzdata && \
+#	cp /usr/share/zoneinfo/Asia/Seoul /etc/localtime && \
+#	echo "Asia/Seoul" > /etc/timezone \
+#	apk del tzdata
+
+COPY --from=corretto-jdk /jre $JAVA_HOME
+COPY --from=builder build/libs/nangpun-api-0.0.1-SNAPSHOT.jar /opt/app/application.jar
+ADD 'https://dtdg.co/latest-java-tracer' /opt/app/dd-java-agent.jar
+RUN echo "JAVA_OPTS=-javaagent:/opt/app/dd-java-agent.jar" > application.conf && chmod 400 application.conf
+
+ENTRYPOINT ["java", "-Xms100m", "-Xmx100m", "-javaagent:/opt/app/dd-java-agent.jar", "-Dspring.profiles.active=${SPRING_PROFILES_ACTIVE}", "-jar", "/opt/app/application.jar"]
