@@ -1,4 +1,4 @@
-\c nangpun
+\c tempDB
 
 CREATE TABLE IF NOT EXISTS trade_history (
     id SERIAL PRIMARY KEY,
